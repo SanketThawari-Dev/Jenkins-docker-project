@@ -1,0 +1,44 @@
+pipeline {
+    agent any
+
+    stages {
+        stage('Git Checkout') {
+            steps {
+                git changelog: false, credentialsId: 'jenkins-git-PAT-key', poll: false, url: 'https://github.com/SanketThawari-Dev/Costco-Chatapp-Prod-01.git'
+            }
+        }
+        
+        
+        stage('Build Docker Image on Remote') {
+            steps {
+                withCredentials([sshUserPrivateKey(credentialsId: 'jenkins-ssh-pri-key', keyFileVariable: 'SSH_KEY')]) {
+                    sh """
+                    scp -i \$SSH_KEY -o StrictHostKeyChecking=no -r * ubuntu@52.54.179.154:/home/ubuntu/docker_data
+                    ssh -i \$SSH_KEY -o StrictHostKeyChecking=no ubuntu@52.54.179.154 '
+                        cd /home/ubuntu/docker_data &&
+                        docker build -t myapp:latest .
+                    '
+                    """
+                }
+            }
+        }
+
+        stage('Run Container on Remote') {
+            steps {
+                withCredentials([sshUserPrivateKey(credentialsId: 'jenkins-ssh-pri-key', keyFileVariable: 'SSH_KEY')]) {
+                    sh """
+                    ssh -i \$SSH_KEY -o StrictHostKeyChecking=no ubuntu@52.54.179.154 '
+                        docker rm -f myapp || true &&
+                        docker run -d -p 80:80 --name myapp myapp:latest
+                    '
+                    """
+                }
+            }
+        }
+
+        
+        
+    }
+    
+       
+}
